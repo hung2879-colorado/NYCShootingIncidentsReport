@@ -1,0 +1,238 @@
+---
+title: "Week 3 Peer Review - Data Science As A Field"
+author: "Hung Nguyen"
+date: "2023-04-10"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+## NYDC Shooting Incident Historic Data
+
+### I) Data Import
+
+I imported the shooting incident data from city of New York website data to a variable named 'nyc'.
+
+```{r echo= TRUE}
+library(tidyverse)
+library(lubridate)
+link_address = 'https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD'
+nyc = read_csv(link_address)
+```
+
+I removed these columns 'INCIDENT_KEY','X_COORD_CD' ,'Y_COORD_CD','Latitude','Longitude','Lon_Lat' from the imported data set. I can see OCCUR_DATE is in character so I fixed it into date object.  I also added 2 more columns named INCIDENT_COUNT and MURDER(1 for fatal, 0 for non-fatal).
+Here is the summary of the data set after importing, removing unnecessary columns:
+
+```{r echo = TRUE}
+nyc$Murder = as.integer(nyc$STATISTICAL_MURDER_FLAG)
+nyc <- nyc %>% 
+  select(-c('INCIDENT_KEY','X_COORD_CD','Y_COORD_CD','Latitude','Longitude','Lon_Lat')) %>% 
+  mutate(OCCUR_DATE = mdy(OCCUR_DATE)) %>% mutate(INCIDENT_COUNT = 1) 
+summary(nyc)
+nyc
+```
+
+I'm going to look at relationship between gender,race, as well as the relationship between number of incidents versus the number of deaths. 
+
+
+### II) Data Analysis 
+
+
+
+```{r echo=FALSE}
+ggplot(nyc, aes(x = VIC_SEX)) + geom_bar() +
+  theme_gray(base_size = 14) +
+  ggtitle("Incidents By Gender") +
+  theme(plot.title = element_text(color="red", size=14, face="bold.italic"),
+        axis.title.x = element_text(color="blue", size=14, face="bold"),
+        axis.title.y = element_text(color="#993333", size=14, face="bold"))
+```
+
+This is the plot of males count vs females count of victims. We can see clearly that male victims dominated over female victims in shooting incidents. This shows that males tend to engage in violent activities in NYC.
+
+```{r echo = FALSE}
+ggplot(nyc, aes(x = STATISTICAL_MURDER_FLAG)) + geom_bar() +
+  theme_gray(base_size = 14) +
+  ggtitle("Fatal vs Non-fatal") +
+  theme(plot.title = element_text(color="red", size=14, face="bold.italic"),
+        axis.title.x = element_text(color="blue", size=14, face="bold"),
+        axis.title.y = element_text(color="#993333", size=14, face="bold"))
+```
+
+Here is the plot of non-fatal incidents count vs fatal incidents count. This count is taken from the column STATISTICAL_MURDER_FLAG where 'FALSE' = non-fatal and 'TRUE' = fatal. We can see the number of non-fatal incidents are roughly 4 times of fatal incidents.
+
+
+```{r echo =FALSE}
+ggplot(nyc, aes(x = VIC_RACE)) + geom_bar()  +
+  theme_gray(base_size = 5) +
+  ggtitle("Incidents By Races") +
+  theme(plot.title = element_text(color="red", size=14, face="bold.italic"),
+        axis.title.x = element_text(color="blue", size=14, face="bold"),
+        axis.title.y = element_text(color="#993333", size=14, face="bold"))
+```
+
+Above is the plot of each race group count. This is taken from column VIC_RACE. We can see BLACK race is the majored gender which has the most number of victims. Hence, together with gender, we can see that Black Male are the biggest victims.
+
+
+This will further raise a couple of questions about our data. For example, we can look at age ranges of shooting victims, especially the black male victims. And we can also find out number of victims, age groups and genders of those victims by neighborhood. 
+
+I created a new variable called nyc_by_boro. I grouped the incidents by BORO, summed all the incidents count and murders count.
+
+```{r echo = TRUE}
+nyc_by_boro = nyc %>% 
+  group_by(BORO) %>% 
+  summarize(INCIDENTS = sum(INCIDENT_COUNT), DEATHS = sum(Murder)) %>% 
+  ungroup()
+nyc_by_boro
+```
+
+```{r echo= FALSE}
+ggplot(nyc_by_boro, aes(x=BORO, y= INCIDENTS)) + geom_col() +
+  theme_gray(base_size = 14) +
+  ggtitle("Incidents By Neighborhood") +
+  theme(plot.title = element_text(color="red", size=14, face="bold.italic"),
+        axis.title.x = element_text(color="blue", size=14, face="bold"),
+        axis.title.y = element_text(color="#993333", size=14, face="bold"))
+```
+
+This is the plot of number of incidents happened in each neighborhood of New York City. We can see that Brooklyn has the highest number of incidents.
+
+```{r echo= FALSE}
+ggplot(nyc_by_boro, aes(x=BORO, y= DEATHS)) + geom_col() +
+  theme_gray(base_size = 14) + 
+  ggtitle("Deaths By Neighborhood") +
+  theme(plot.title = element_text(color="red", size=14, face="bold.italic"),
+        axis.title.x = element_text(color="blue", size=14, face="bold"),
+        axis.title.y = element_text(color="#993333", size=14, face="bold"))
+```
+
+The above is the plot of number of deaths happened in each neighborhood of NYC given the shooting incidents there. We can see that Brooklyn also has the highest number of deaths.
+
+
+Let's create a variable called nyc_by_age. This variable is derived from nyc, grouped by VIC_AGE_GROUP, BORO and VIC_RACE. I also calculate INCIDENTS and DEATHS as before.
+
+```{r echo=  TRUE}
+nyc_by_age = nyc %>% 
+  group_by(VIC_AGE_GROUP, BORO, VIC_RACE) %>% 
+  summarize(INCIDENTS = sum(INCIDENT_COUNT), DEATHS = sum(Murder)) %>% 
+  ungroup()
+nyc_by_age
+```
+
+```{r echo = FALSE}
+nyc_by_age_incidents = nyc_by_age %>% 
+  group_by(VIC_AGE_GROUP) %>% 
+  summarize(INCIDENTS = sum(INCIDENTS)) %>%
+  ungroup()
+nyc_by_age_incidents
+nyc_by_age_incidents = nyc_by_age_incidents %>% filter(VIC_AGE_GROUP != '1022')
+
+ggplot(nyc_by_age_incidents, aes(x=VIC_AGE_GROUP, y= INCIDENTS)) + geom_col() +
+  theme_gray(base_size = 14) +
+  ggtitle("Victims By Age") +
+  theme(plot.title = element_text(color="red", size=14, face="bold.italic"),
+        axis.title.x = element_text(color="blue", size=14, face="bold"),
+        axis.title.y = element_text(color="#993333", size=14, face="bold"))
+```
+
+The plot of age group of victims versus number of incidents shows that age group 25-44 has the highest number of incidents, followed by age group 18-24.
+
+Now let's create another variable called nyc_by_age_brooklyn. I filtered data from Brooklyn neighborhood from nyc_by_age. Then I calculate the incidents percentage for each victim race in each age group. After generating the list, I can see that for each age_group, BLACK race has the highest percentage among most of groups.
+
+```{r echo = TRUE}
+nyc_by_age_brooklyn = nyc_by_age %>% filter(BORO == 'BROOKLYN')
+nyc_by_age_brooklyn = nyc_by_age_brooklyn %>% 
+  group_by(VIC_AGE_GROUP) %>%
+  summarize(VIC_RACE = VIC_RACE, INCIDENT_PERCENTAGE = INCIDENTS*100/sum(INCIDENTS)) %>%
+  ungroup()
+
+nyc_by_age_brooklyn = nyc_by_age_brooklyn %>% filter(VIC_RACE == 'BLACK')
+nyc_by_age_brooklyn
+```
+
+
+### III) MODEL ANALYSIS
+
+I created a new variable called nyc_by_date. I grouped the incidents by OCCUR_DATE, summed all the incidents count and murders count for each given date. I also created a new column YEAR based on the year of the OCCUR_DATE
+
+```{r echo= TRUE}
+nyc_by_date = nyc %>% group_by(OCCUR_DATE) %>% 
+  summarize(INCIDENTS = sum(INCIDENT_COUNT), DEATHS = sum(Murder)) %>% 
+  mutate(YEAR = year(OCCUR_DATE)) %>% ungroup()
+nyc_by_date
+```
+
+Let's create a new variable called nyc_by_year. This variable is derived from nyc_by_date where INCIDENTS and DEATHS are grouped and summed for every given year.
+
+```{r echo = TRUE}
+nyc_by_year = nyc_by_date %>% 
+  group_by(YEAR) %>% 
+  summarize(INCIDENTS = sum(INCIDENTS), DEATHS = sum(DEATHS)) %>% 
+  ungroup()
+nyc_by_year
+```
+
+```{r echo = FALSE}
+x_axis = min(nyc_by_year$YEAR):max(nyc_by_year$YEAR)
+ggplot(nyc_by_year, aes(x=YEAR,y = INCIDENTS)) + geom_point() + geom_line() + 
+  theme_gray(base_size = 14) +
+  scale_x_continuous(labels = as.character(x_axis), breaks = x_axis) +
+  ggtitle("Incidents Over Time") +
+  theme(plot.title = element_text(color="red", size=14, face="bold.italic"),
+        axis.title.x = element_text(color="blue", size=14, face="bold"),
+        axis.title.y = element_text(color="#993333", size=14, face="bold"))
+```
+
+This is the plot of INCIDENTS vs YEAR. WE can see that the number of incidents decreased from 2006 to 2018 but started to increase back to the previous level since 2019. 
+
+```{r echo = FALSE}
+x_axis = min(nyc_by_year$YEAR):max(nyc_by_year$YEAR)
+ggplot(nyc_by_year, aes(x=YEAR,y = DEATHS)) + geom_point() + geom_line() + 
+  theme_gray(base_size = 14) +
+  scale_x_continuous(labels = as.character(x_axis), breaks = x_axis) +
+  ggtitle("Deaths Over Time") +
+  theme(plot.title = element_text(color="red", size=14, face="bold.italic"),
+        axis.title.x = element_text(color="blue", size=14, face="bold"),
+        axis.title.y = element_text(color="#993333", size=14, face="bold"))
+```
+
+Above is the plot of DEATHS vs YEAR. We can see that the number of deaths decreased from 2006 to 2018 but started to increase back to the previous level since 2019.
+
+```{r echo= FALSE}
+ggplot(nyc_by_year,aes(x=INCIDENTS,y = DEATHS)) + geom_point() + geom_smooth() +
+  theme_gray(base_size = 14) +
+  ggtitle("Incidents vs Deaths") +
+  theme(plot.title = element_text(color="red", size=14, face="bold.italic"),
+        axis.title.x = element_text(color="blue", size=14, face="bold"),
+        axis.title.y = element_text(color="#993333", size=14, face="bold"))
+```
+
+Above is the plot of INCIDENTS vs DEATHS. We may see a linear relationship between DEATHS and INCIDENTS. 
+
+So I'm going to implement a linear model for the relationship between DEATHS and INCIDENTS.
+
+```{r echo = TRUE}
+model = lm(DEATHS ~ INCIDENTS, data = nyc_by_year)
+summary(model)
+```
+
+This model seems to be a good fit since the coefficient for INCIDENTS is statically significant.
+
+### IV) Conclusion & Bias
+
+This analysis took information provided by the New York Police Department regarding shooting incidents and created a better understanding of the demographics of the incidents' victims. The data shows that most incidents are non-fatal and majority of victims are black males. We can further investigate by looking at age groups, number of incidents by neighborhood. Moreover, we can also look at incidents number over period of time change. This may provide us an insight of the incident shooting trend in NYC over time.
+
+As we look into more details, we can see a linear relationship between the number of incidents and number of fatal ones. It it a positive linear relationship which has statically significant coefficient. 
+
+There are a few possible source of bias:
+
+- The data does not suggest whether or not the victim is a resident of NYC or just a visitor.
+- Some incidents are not reported such as non-fatal incidents.
+- The data was collected by NYPD but we do not know how these information was collected. It could affect the gender, race and age of victims.
+
+
